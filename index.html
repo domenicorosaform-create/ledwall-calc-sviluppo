@@ -120,6 +120,15 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
 .ni .nb{font-size:11px;padding:3px 9px;border:1px solid rgba(190,160,80,0.3);border-radius:20px;color:var(--gold);display:inline-block;margin-bottom:5px}
 .ni .nl{font-size:12px;color:var(--tm)}
 .ni .nv{font-size:15px;font-weight:600}
+/* LEDWALL CUSTOM */
+.lcu-wrap{display:grid;grid-template-columns:190px 1fr;gap:14px}
+.lcu-tool{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:transparent}
+.lcu-tool.act{border-color:var(--gold);background:rgba(190,160,80,0.1)}
+.lcu-swatch{width:22px;height:22px;border-radius:5px;flex-shrink:0}
+.lcu-grid{display:grid;gap:2px;justify-content:center;touch-action:none}
+.lcu-cell{width:28px;height:28px;border-radius:3px;border:1px solid rgba(255,255,255,0.05);cursor:pointer}
+.lcu-tb-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent}
+.lcu-tb-btn.act{background:rgba(190,160,80,0.22);border-color:rgba(190,160,80,0.4)}
 /* ===== MOBILE RESPONSIVE — STILE LOVABLE ===== */
 @media(max-width:768px){
   .cnt{padding:12px 14px}
@@ -139,6 +148,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
   /* GRIDS: tutto impilato come Lovable */
   .g3{grid-template-columns:1fr !important;gap:16px !important}
   .g2{grid-template-columns:1fr !important;gap:16px !important}
+  .lcu-wrap{grid-template-columns:1fr !important}
   /* INPUT grandi touch-friendly come Lovable */
   .fld label{font-size:14px;color:var(--tm);margin-bottom:8px;font-weight:500}
   .fld input,.fld select{padding:16px 14px;font-size:18px;border-radius:12px;min-height:54px;background:rgba(255,255,255,0.08)}
@@ -454,6 +464,44 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
   </div>
 </div>
 <div class="divider"></div>
+<!-- LEDWALL CUSTOM -->
+<div class="card">
+  <div class="ch">
+    <div class="ct">🧩 Ledwall Custom Lotto 5</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="btn-exp-lcu" style="display:none" onclick="exportPDFLedwallCustom()">📄 Esporta PDF</button>
+      <button class="btn btn-ghost" onclick="resetLedwallCustom()">↺ Reset</button>
+    </div>
+  </div>
+  <div class="cb">
+    <div style="font-size:12px;color:var(--tm);margin-bottom:12px;line-height:1.5">Componi liberamente qualsiasi configurazione — non solo dritta, angolare o curva. Scegli un modulo dalla palette e dipingi sulla griglia; i risultati si calcolano contando le celle disegnate.</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--tm);font-weight:500">📐 Tavolozza</div>
+      <div class="fld" style="width:110px;margin:0"><label>Larghezza (m)</label><input type="text" id="lcu-w" inputmode="decimal" placeholder="es. 8"></div>
+      <div class="fld" style="width:110px;margin:0"><label>Altezza (m)</label><input type="text" id="lcu-h" inputmode="decimal" placeholder="es. 5,5"></div>
+      <button class="btn btn-ghost" style="margin-top:16px" onclick="applyLcuSize()">↺ Ridisegna tavolozza</button>
+    </div>
+    <div id="lcu-invalid" class="lt-warn danger"></div>
+    <div id="lcu-canvas-wrap"></div>
+  </div>
+</div>
+<div id="lcu-result" style="display:none">
+  <div class="card">
+    <div class="ch"><div class="ct">📊 Risultati</div></div>
+    <div class="cb">
+      <div class="sg" id="lcu-summary"></div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:500;color:var(--tm);margin-bottom:10px">📺 Risoluzione Pixel</div>
+        <div id="lcu-pixel"></div>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:500;color:var(--tm);margin-bottom:10px">📦 Specifiche</div>
+        <div class="lc act" id="lcu-spec"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="divider"></div>
 <!-- CALCOLO LINEE TECNICHE -->
 <div class="card">
   <div class="ch"><div class="ct">⚡ Calcolo Linee Tecniche</div></div>
@@ -618,6 +666,8 @@ const MODS = [
   {id:'5-100x50',lotto:'5',passo:'2.6',modulo:'100x50',mW:50,mH:100,pxX:192,pxY:384,pixel:'384x192',reteMax:'8',alimMax:'12'},
 ];
 const COL={'50x100FLAT':'#6b7280','50x50FLAT':'#f43f5e','50x50TAGLIATO':'#4ade80','50x50CURVO':'#a855f7'};
+const LCU_LABELS={'50x100FLAT':'100×50 FLAT','50x50FLAT':'50×50 FLAT','50x50TAGLIATO':'50×50 TAGLIATO','50x50CURVO':'50×50 CURVO'};
+function lcuHexToRgba(hex,alpha){const h=hex.replace('#','');const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);return 'rgba('+r+','+g+','+b+','+alpha+')';}
 const TR=1920/1080;
 // ===== STATE =====
 let larg=9,alt=3,passo=2.6,isAmerica=false;
@@ -625,6 +675,15 @@ let l5s1=0,l5s2=0,l5alt=0,solo50=false;
 let lcs1=0,lcs2=0,lccurve=0,lcalt=0,lcsolo50=false;
 let l5Rot=0,l5Mirror=false;
 let lcRot=0,lcMirror=false;
+// ===== LEDWALL CUSTOM =====
+let lcuW=0,lcuH=0,lcuCols=0,lcuRows=0;
+let lcuGrid={};
+let lcuTool='50x100FLAT';
+let lcuPainting=false;
+let lcuEraseMode=false;
+let lcuSelections=[];   // array di {id,num,cells:Set()} — selezioni multiple indipendenti
+let lcuActiveSelId=null;
+let lcuSelCounter=0;
 // ===== TRASFORMAZIONE ANTEPRIMA (ruota 90°/specchia) — condivisa tra vista live (SVG) e PDF =====
 // Applica, in quest'ordine, uno specchio orizzontale (se attivo) e poi una rotazione oraria a step di 90°,
 // mappando un punto (x,y) di un riquadro locale W×H in un nuovo riquadro non-negativo.
@@ -1386,6 +1445,333 @@ function exportPDFLottoCurvo(){
     doc.save('Ledwall_Curvo_Lotto5_'+cfg+'_'+new Date().toISOString().split('T')[0]+'.pdf');
   }catch(e){alert('Attendere il caricamento della libreria PDF e riprovare.');}
 }
+// ===== LEDWALL CUSTOM =====
+function applyLcuSize(){
+  const w=pd(document.getElementById('lcu-w').value);
+  const h=pd(document.getElementById('lcu-h').value);
+  const invEl=document.getElementById('lcu-invalid');invEl.classList.remove('show');invEl.textContent='';
+  if(!w||!h){invEl.textContent='⚠️ Inserisci larghezza e altezza della tavolozza.';invEl.classList.add('show');return;}
+  const onGrid=v=>Math.round(v*100)%50===0;
+  if(!onGrid(w)||!onGrid(h)){invEl.textContent='⚠️ Larghezza e altezza devono essere multipli di 0,5m.';invEl.classList.add('show');return;}
+  lcuW=w;lcuH=h;lcuCols=Math.round(w/0.5);lcuRows=Math.round(h/0.5);
+  Object.keys(lcuGrid).forEach(k=>{const[r,c]=k.split(',').map(Number);if(r>=lcuRows||c>=lcuCols)delete lcuGrid[k];});
+  lcuSelections.forEach(sel=>{Array.from(sel.cells).forEach(k=>{const[r,c]=k.split(',').map(Number);if(r>=lcuRows||c>=lcuCols)sel.cells.delete(k);});});
+  renderLedwallCustom();
+}
+function setLcuTool(tool){
+  lcuTool=tool;
+  if(tool==='select'&&!lcuSelections.length){
+    lcuNewSelectionSilent();
+  }else if(tool==='select'&&!lcuGetActiveSelection()){
+    lcuActiveSelId=lcuSelections[lcuSelections.length-1].id;
+  }
+  renderLcuCanvas();
+}
+// ===== SELEZIONI MULTIPLE (n selezioni indipendenti, ciascuna con la propria risoluzione pixel) =====
+function lcuGetActiveSelection(){
+  return lcuSelections.find(s=>s.id===lcuActiveSelId)||null;
+}
+function lcuNewSelectionSilent(){
+  lcuSelCounter++;
+  const sel={id:'sel'+lcuSelCounter,num:lcuSelCounter,cells:new Set()};
+  lcuSelections.push(sel);
+  lcuActiveSelId=sel.id;
+  return sel;
+}
+function lcuNewSelection(){
+  lcuTool='select';
+  lcuNewSelectionSilent();
+  renderLedwallCustom();
+}
+function lcuSetActiveSelection(id){
+  lcuActiveSelId=id;
+  lcuTool='select';
+  renderLcuCanvas();
+}
+function lcuDeleteSelection(id){
+  lcuSelections=lcuSelections.filter(s=>s.id!==id);
+  if(lcuActiveSelId===id)lcuActiveSelId=lcuSelections.length?lcuSelections[lcuSelections.length-1].id:null;
+  renderLedwallCustom();
+}
+function lcuCellRing(r,c){
+  const key=r+','+c;
+  for(let i=0;i<lcuSelections.length;i++){
+    if(lcuSelections[i].cells.has(key)){
+      return lcuSelections[i].id===lcuActiveSelId?'0 0 0 2px #BEA050 inset':'0 0 0 1px rgba(190,160,80,0.45) inset';
+    }
+  }
+  return 'none';
+}
+// Il modulo 100x50 è alto il doppio di uno 50x50 (0,5 x 1,0 m): occupa sempre 2 celle
+// verticali della griglia da 0,5m, mai una sola — altrimenti superficie e risoluzione
+// pixel risultano dimezzate in altezza rispetto alla realtà.
+function lcuFindPairRow(r,c){
+  if(lcuGrid[(r+1)+','+c]==='50x100FLAT')return r+1;
+  if(lcuGrid[(r-1)+','+c]==='50x100FLAT')return r-1;
+  return null;
+}
+function lcuSetCell(r,c,type){
+  const key=r+','+c;
+  if(type===null){
+    delete lcuGrid[key];
+    // una cella tornata vuota non ha senso restare in una selezione: la rimuove da tutte
+    lcuSelections.forEach(sel=>{
+      if(sel.cells.delete(key)){
+        const countEl=document.getElementById('lcu-chip-count-'+sel.id);
+        if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
+      }
+    });
+  }else{
+    lcuGrid[key]=type;
+  }
+  const el=document.querySelector('.lcu-cell[data-r="'+r+'"][data-c="'+c+'"]');
+  if(el){
+    el.style.background=type?COL[type]:'rgba(255,255,255,0.025)';
+    el.style.boxShadow=lcuCellRing(r,c);
+  }
+}
+function lcuPaintCell(r,c){
+  const key=r+','+c;
+  if(lcuTool==='select'){
+    if(lcuGrid[key]===undefined)return; // non si può selezionare una cella senza modulo disegnato
+    const sel=lcuGetActiveSelection();
+    if(!sel)return;
+    if(sel.cells.has(key))sel.cells.delete(key);else sel.cells.add(key);
+    const el=document.querySelector('.lcu-cell[data-r="'+r+'"][data-c="'+c+'"]');
+    if(el)el.style.boxShadow=lcuCellRing(r,c);
+    const countEl=document.getElementById('lcu-chip-count-'+sel.id);
+    if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
+    return;
+  }
+  // ripassare in trascinamento su una cella già del tipo corretto non deve fare nulla:
+  // altrimenti il ripasso sulla metà di una coppia 100x50 già piazzata la romperebbe
+  // e la ricreerebbe spostata, "scivolando" lungo il trascinamento.
+  if(lcuTool==='eraser'){
+    if(lcuGrid[key]===undefined)return;
+  }else if(lcuGrid[key]===lcuTool){
+    return;
+  }
+  // se la cella colpita è già metà di un modulo 100x50, libera anche l'altra metà
+  if(lcuGrid[key]==='50x100FLAT'){
+    const pr=lcuFindPairRow(r,c);
+    if(pr!==null)lcuSetCell(pr,c,null);
+  }
+  if(lcuTool==='eraser'){
+    lcuSetCell(r,c,null);
+    return;
+  }
+  if(lcuTool==='50x100FLAT'){
+    lcuSetCell(r,c,'50x100FLAT');
+    const r2=r+1<lcuRows?r+1:(r-1>=0?r-1:null);
+    if(r2!==null)lcuSetCell(r2,c,'50x100FLAT');
+    return;
+  }
+  lcuSetCell(r,c,lcuTool);
+}
+function lcuGridMouseDown(e){
+  const cell=e.target.closest&&e.target.closest('.lcu-cell');
+  if(!cell)return;
+  lcuPainting=true;
+  lcuPaintCell(parseInt(cell.dataset.r),parseInt(cell.dataset.c));
+}
+function lcuGridMouseOver(e){
+  if(!lcuPainting)return;
+  const cell=e.target.closest&&e.target.closest('.lcu-cell');
+  if(!cell)return;
+  lcuPaintCell(parseInt(cell.dataset.r),parseInt(cell.dataset.c));
+}
+function lcuStopPainting(){
+  if(lcuPainting){lcuPainting=false;renderLcuResults();}
+}
+function lcuGridTouchStart(e){
+  const cell=e.target.closest&&e.target.closest('.lcu-cell');
+  if(!cell)return;
+  lcuPainting=true;
+  lcuPaintCell(parseInt(cell.dataset.r),parseInt(cell.dataset.c));
+  e.preventDefault();
+}
+function lcuGridTouchMove(e){
+  if(!lcuPainting)return;
+  const t=e.touches[0];if(!t)return;
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  const cell=el&&el.closest?el.closest('.lcu-cell'):null;
+  if(!cell)return;
+  lcuPaintCell(parseInt(cell.dataset.r),parseInt(cell.dataset.c));
+  e.preventDefault();
+}
+function renderLcuCanvas(){
+  const wrap=document.getElementById('lcu-canvas-wrap');
+  if(!lcuCols||!lcuRows){wrap.innerHTML='';return;}
+  const TOOLS=[
+    {id:'50x100FLAT',label:'100×50 FLAT',sub:'standard'},
+    {id:'50x50FLAT',label:'50×50 FLAT',sub:'transizione'},
+    {id:'50x50TAGLIATO',label:'50×50 TAGLIATO',sub:'angolo 90°'},
+    {id:'50x50CURVO',label:'50×50 CURVO',sub:'giunzione curva'},
+  ];
+  const paletteHtml=TOOLS.map(t=>`<div class="lcu-tool${lcuTool===t.id?' act':''}" onclick="setLcuTool('${t.id}')"><div class="lcu-swatch" style="background:${COL[t.id]}"></div><div><div style="font-size:12px;font-weight:500">${t.label}</div><div style="font-size:10px;color:var(--tm)">${t.sub}</div></div></div>`).join('')
+    +`<div class="lcu-tool${lcuTool==='eraser'?' act':''}" onclick="setLcuTool('eraser')"><div class="lcu-swatch" style="border:1.5px dashed rgba(255,255,255,0.3)"></div><div style="font-size:12px;font-weight:500;color:var(--tm)">Gomma</div></div>`;
+  let cellsHtml='';
+  for(let r=0;r<lcuRows;r++){
+    for(let c=0;c<lcuCols;c++){
+      const key=r+','+c;
+      const t=lcuGrid[key];
+      const bg=t?COL[t]:'rgba(255,255,255,0.025)';
+      const ring=lcuCellRing(r,c);
+      cellsHtml+=`<div class="lcu-cell" data-r="${r}" data-c="${c}" style="background:${bg};box-shadow:${ring}"></div>`;
+    }
+  }
+  const selChipsHtml=lcuSelections.map(s=>`<div class="lcu-tool${s.id===lcuActiveSelId?' act':''}" style="padding:5px 9px;gap:6px" onclick="lcuSetActiveSelection('${s.id}')"><span id="lcu-chip-count-${s.id}" style="font-size:11px">▭ Selezione ${s.num} (${s.cells.size})</span><span onclick="event.stopPropagation();lcuDeleteSelection('${s.id}')" style="color:var(--tm);cursor:pointer;font-size:11px;padding:0 2px" title="Elimina selezione">✕</span></div>`).join('')
+    +`<button class="btn btn-ghost" style="padding:5px 10px;font-size:11px" onclick="lcuNewSelection()">+ Nuova selezione</button>`;
+  wrap.innerHTML=`<div class="lcu-wrap">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${paletteHtml}
+      <div style="font-size:11px;color:var(--ts);line-height:1.5;margin-top:4px">Clicca un modulo poi disegna sulla griglia trascinando. Crea una o più selezioni per calcolare la risoluzione pixel di ogni area separatamente (es. le gambe e la traversa di un portale).</div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:11px;color:var(--tm)">griglia 0,5 m — ${lcuW.toLocaleString('it-IT')} × ${lcuH.toLocaleString('it-IT')} m</div>
+        <div class="lcu-tb-btn${lcuTool==='select'?' act':''}" onclick="setLcuTool('select')" title="Seleziona area">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${lcuTool==='select'?'#d4b86a':'#9a9ab0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/></svg>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">${selChipsHtml}</div>
+      <div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div>
+      <div class="leg" style="margin-top:12px">
+        <div class="li"><div class="ld" style="background:${COL['50x100FLAT']}"></div><span>50x100 FLAT</span></div>
+        <div class="li"><div class="ld" style="background:${COL['50x50FLAT']}"></div><span>50x50 FLAT</span></div>
+        <div class="li"><div class="ld" style="background:${COL['50x50TAGLIATO']}"></div><span>50x50 TAGLIATO</span></div>
+        <div class="li"><div class="ld" style="background:${COL['50x50CURVO']}"></div><span>50x50 CURVO</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+function renderLcuResults(){
+  const res=document.getElementById('lcu-result');
+  const btn=document.getElementById('btn-exp-lcu');
+  const keys=Object.keys(lcuGrid);
+  if(!keys.length){res.style.display='none';btn.style.display='none';return;}
+  res.style.display='block';btn.style.display='inline-flex';
+  const counts={'50x100FLAT':0,'50x50FLAT':0,'50x50TAGLIATO':0,'50x50CURVO':0};
+  keys.forEach(k=>{counts[lcuGrid[k]]++;});
+  const mqOf=t=>Math.round(counts[t]*0.25*100)/100;
+  const totalMq=Math.round(keys.length*0.25*100)/100;
+  const items=[
+    {c:COL['50x100FLAT'],l:'50x100 FLAT',v:mqOf('50x100FLAT')+' mq'},
+    {c:COL['50x50FLAT'],l:'50x50 FLAT',v:mqOf('50x50FLAT')+' mq'},
+    {c:COL['50x50TAGLIATO'],l:'50x50 TAGLIATO',v:mqOf('50x50TAGLIATO')+' mq'},
+    {c:COL['50x50CURVO'],l:'50x50 CURVO',v:mqOf('50x50CURVO')+' mq'},
+    {c:null,l:'TOTALE',v:totalMq+' mq',hi:true},
+  ];
+  document.getElementById('lcu-summary').innerHTML=items.map(it=>`<div class="sc${it.hi?' shi':''}"><div class="sl">${it.c?`<div class="ld" style="background:${it.c}"></div>`:''}<span>${it.l}</span></div><div class="sv">${it.v}</div></div>`).join('');
+  const ppm=Math.floor(1000/2.6);
+  const rxTot=Math.floor(ppm*lcuCols*0.5),ryTot=Math.floor(ppm*lcuRows*0.5);
+  let pixelHtml=`<div class="sc shi"><div class="sl"><span>Tavolozza (${lcuW.toLocaleString('it-IT')}×${lcuH.toLocaleString('it-IT')}m)</span></div><div class="sv">${rxTot.toLocaleString('it-IT')} × ${ryTot.toLocaleString('it-IT')} px</div></div>`;
+  lcuSelections.forEach(sel=>{
+    if(!sel.cells.size)return;
+    let minR=Infinity,maxR=-Infinity,minC=Infinity,maxC=-Infinity;
+    const typesPresent=new Set();
+    sel.cells.forEach(k=>{const[r,c]=k.split(',').map(Number);minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);const t=lcuGrid[k];if(t)typesPresent.add(t);});
+    const selW=(maxC-minC+1)*0.5,selH=(maxR-minR+1)*0.5;
+    const rxSel=Math.floor(ppm*selW),rySel=Math.floor(ppm*selH);
+    const typeColors=Array.from(typesPresent).map(t=>COL[t]);
+    const accent=typeColors.length===1?typeColors[0]:'#BEA050';
+    const dotsHtml=typeColors.map(c=>`<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};flex-shrink:0"></span>`).join('');
+    pixelHtml+=`<div style="margin-top:8px;background:${lcuHexToRgba(accent,0.08)};border:1px dashed ${lcuHexToRgba(accent,0.5)};border-radius:10px;padding:9px">
+      <div style="font-size:10px;color:${accent};margin-bottom:3px;display:flex;align-items:center;gap:5px">${dotsHtml}<span>Selezione ${sel.num} (${sel.cells.size} moduli, ${selW.toLocaleString('it-IT')}×${selH.toLocaleString('it-IT')}m)</span></div>
+      <div style="font-size:15px;font-weight:700">${rxSel.toLocaleString('it-IT')} × ${rySel.toLocaleString('it-IT')} px</div>
+    </div>`;
+  });
+  document.getElementById('lcu-pixel').innerHTML=pixelHtml;
+  const kw=Math.round(totalMq*0.24*2*100)/100,linee=Math.ceil(kw/3);
+  document.getElementById('lcu-spec').innerHTML=`
+    <div class="lp">PASSO: 2.6 mm</div>
+    <div class="lr"><span>📐 Superficie:</span><span>${totalMq.toFixed(2)} mq</span></div>
+    <div class="lr"><span>🧩 Moduli disegnati:</span><span>${keys.length}</span></div>
+    <div class="lr"><span>⚡ Linee:</span><span>${linee}</span></div>
+    <div class="lr"><span>💡 Potenza:</span><span>${kw} kW</span></div>`;
+}
+function renderLedwallCustom(){
+  renderLcuCanvas();
+  renderLcuResults();
+}
+function resetLedwallCustom(){
+  lcuW=0;lcuH=0;lcuCols=0;lcuRows=0;
+  lcuGrid={};lcuSelections=[];lcuActiveSelId=null;lcuSelCounter=0;
+  lcuTool='50x100FLAT';lcuPainting=false;
+  document.getElementById('lcu-w').value='';
+  document.getElementById('lcu-h').value='';
+  const invEl=document.getElementById('lcu-invalid');invEl.classList.remove('show');invEl.textContent='';
+  renderLedwallCustom();
+}
+// ===== PDF LEDWALL CUSTOM =====
+function exportPDFLedwallCustom(){
+  const keys=Object.keys(lcuGrid);
+  if(!keys.length||!lcuCols||!lcuRows)return;
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF('p','mm','a4');
+    const pw=doc.internal.pageSize.getWidth(),ph=doc.internal.pageSize.getHeight();
+    const mg=18,cw=pw-2*mg;
+    const gold={r:190,g:160,b:80},dk={r:40,g:40,b:45},sub={r:120,g:120,b:130},lb={r:248,g:248,b:252};
+    const date=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'});
+    const nomeProg=document.getElementById('nome-progetto').value||'';
+    let y=mg;
+    const addHeader=()=>{doc.setFillColor(gold.r,gold.g,gold.b);doc.rect(0,0,pw,2,'F');doc.setFillColor(255,255,255);doc.rect(0,2,pw,26,'F');doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,28,pw-mg,28);doc.setTextColor(dk.r,dk.g,dk.b);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('FORM.THE CREATIVE GROUP',mg,13);doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(sub.r,sub.g,sub.b);doc.text('Ledwall Custom Lotto 5'+(nomeProg?' — '+nomeProg:'')+'  |  Report tecnico',mg,19);doc.setFontSize(8);doc.text(date,pw-mg,13,{align:'right'});y=36;};
+    const chk=(n)=>{if(y+n>ph-20){doc.addPage();addHeader();}};
+    const addSec=(t)=>{chk(18);doc.setFillColor(gold.r,gold.g,gold.b);doc.rect(mg,y,3,9,'F');doc.setFillColor(lb.r,lb.g,lb.b);doc.rect(mg+3,y,cw-3,9,'F');doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(dk.r,dk.g,dk.b);doc.text(t,mg+7,y+6.5);y+=14;};
+    const addRow=(l,v,hi=false)=>{chk(8);doc.setFontSize(9.5);if(hi){doc.setFillColor(245,248,255);doc.rect(mg+2,y-4,cw-4,7,'F');}doc.setDrawColor(235,235,240);doc.setLineWidth(0.15);doc.line(mg+4,y+1.5,pw-mg-4,y+1.5);doc.setFont('helvetica','normal');doc.setTextColor(sub.r,sub.g,sub.b);doc.text(l,mg+6,y);doc.setFont('helvetica',hi?'bold':'normal');doc.setTextColor(dk.r,dk.g,dk.b);doc.text(v,pw-mg-6,y,{align:'right'});y+=7;};
+    addHeader();
+    const counts={'50x100FLAT':0,'50x50FLAT':0,'50x50TAGLIATO':0,'50x50CURVO':0};
+    keys.forEach(k=>{counts[lcuGrid[k]]++;});
+    const mqOf=t=>Math.round(counts[t]*0.25*100)/100;
+    const totalMq=Math.round(keys.length*0.25*100)/100;
+    if(nomeProg){addSec('Progetto');addRow('Nome',nomeProg);y+=4;}
+    addSec('Configurazione');
+    addRow('Tavolozza',lcuW+' × '+lcuH+' m');
+    addRow('Moduli disegnati',''+keys.length);y+=4;
+    addSec('Impegno Moduli');
+    if(counts['50x100FLAT'])addRow('50x100 FLAT',mqOf('50x100FLAT')+' mq');
+    if(counts['50x50FLAT'])addRow('50x50 FLAT',mqOf('50x50FLAT')+' mq');
+    if(counts['50x50TAGLIATO'])addRow('50x50 TAGLIATO',mqOf('50x50TAGLIATO')+' mq');
+    if(counts['50x50CURVO'])addRow('50x50 CURVO',mqOf('50x50CURVO')+' mq');
+    addRow('Superficie totale',totalMq+' mq',true);y+=4;
+    const ppm=Math.floor(1000/2.6);
+    const rxTot=Math.floor(ppm*lcuCols*0.5),ryTot=Math.floor(ppm*lcuRows*0.5);
+    addSec('Risoluzione Pixel');
+    addRow('Tavolozza',rxTot.toLocaleString('it-IT')+' × '+ryTot.toLocaleString('it-IT')+' px',true);
+    lcuSelections.forEach(sel=>{
+      if(!sel.cells.size)return;
+      let minR=Infinity,maxR=-Infinity,minC=Infinity,maxC=-Infinity;
+      const typesPresent=new Set();
+      sel.cells.forEach(k=>{const[r,c]=k.split(',').map(Number);minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);const t=lcuGrid[k];if(t)typesPresent.add(t);});
+      const selW=(maxC-minC+1)*0.5,selH=(maxR-minR+1)*0.5;
+      const rxSel=Math.floor(ppm*selW),rySel=Math.floor(ppm*selH);
+      const typeLabel=typesPresent.size===1?LCU_LABELS[Array.from(typesPresent)[0]]:'misto';
+      addRow('Selezione '+sel.num+' — '+typeLabel+' ('+sel.cells.size+' moduli)',rxSel.toLocaleString('it-IT')+' × '+rySel.toLocaleString('it-IT')+' px');
+    });
+    y+=4;
+    const kw=Math.round(totalMq*0.24*2*100)/100,linee=Math.ceil(kw/3);
+    addSec('Specifiche');
+    addRow('Superficie',totalMq.toFixed(2)+' mq');addRow('Potenza',kw+' kW');addRow('N. Linee',''+linee);addRow('Passo','2.6 mm');
+    doc.addPage();addHeader();addSec('Vista Composizione');
+    const maxPdfW=cw-4,maxPdfH=ph-y-20;
+    const cellPdf=Math.max(1,Math.min(Math.floor(maxPdfW/lcuCols),Math.floor(maxPdfH/lcuRows)));
+    const gridW=cellPdf*lcuCols,ox=mg+(cw-gridW)/2;
+    for(let r=0;r<lcuRows;r++){
+      for(let c=0;c<lcuCols;c++){
+        const t=lcuGrid[r+','+c];
+        if(!t)continue;
+        const fc=t==='50x100FLAT'?[107,114,128]:t==='50x50FLAT'?[244,63,94]:t==='50x50TAGLIATO'?[74,222,128]:[168,85,247];
+        doc.setFillColor(fc[0],fc[1],fc[2]);
+        doc.rect(ox+c*cellPdf,y+r*cellPdf,cellPdf-0.3,cellPdf-0.3,'F');
+      }
+    }
+    y+=lcuRows*cellPdf+10;
+    const total=doc.getNumberOfPages();
+    for(let i=1;i<=total;i++){doc.setPage(i);doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,ph-15,pw-mg,ph-15);doc.setFontSize(7.5);doc.setTextColor(sub.r,sub.g,sub.b);doc.setFont('helvetica','normal');doc.text('FORM.THE CREATIVE GROUP  |  Ledwall Custom Lotto 5'+(nomeProg?' — '+nomeProg:''),mg,ph-10);doc.text(i+' / '+total,pw-mg,ph-10,{align:'right'});}
+    doc.save('Ledwall_Custom_Lotto5_'+(lcuCols*0.5)+'x'+(lcuRows*0.5)+'m_'+new Date().toISOString().split('T')[0]+'.pdf');
+  }catch(e){alert('Attendere il caricamento della libreria PDF e riprovare.');}
+}
 // ===== SIMULATORE PASSO LIBERO =====
 function renderSim(){
   const vl=pd(document.getElementById('sim-larg').value);
@@ -1622,6 +2008,12 @@ function generatePDFWithSelections(sel){
 }
 // ===== INIT =====
 calculate();
+document.addEventListener('mousedown',lcuGridMouseDown);
+document.addEventListener('mouseover',lcuGridMouseOver);
+document.addEventListener('mouseup',lcuStopPainting);
+document.addEventListener('touchstart',lcuGridTouchStart,{passive:false});
+document.addEventListener('touchmove',lcuGridTouchMove,{passive:false});
+document.addEventListener('touchend',lcuStopPainting);
 </script>
 </body>
 </html>
