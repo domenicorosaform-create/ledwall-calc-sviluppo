@@ -1576,6 +1576,10 @@ function lcuGridMouseDown(e){
 }
 function lcuGridMouseOver(e){
   if(!lcuPainting)return;
+  // se il tasto non risulta più premuto il mouseup è andato perso (es. rilasciato fuori
+  // dalla finestra): interrompe subito, altrimenti il solo passaggio del mouse — senza
+  // click — continuerebbe a dipingere/selezionare celle a caso.
+  if((e.buttons&1)===0){lcuStopPainting();return;}
   const cell=e.target.closest&&e.target.closest('.lcu-cell');
   if(!cell)return;
   lcuPaintCell(parseInt(cell.dataset.r),parseInt(cell.dataset.c));
@@ -2014,6 +2018,8 @@ document.addEventListener('mouseup',lcuStopPainting);
 document.addEventListener('touchstart',lcuGridTouchStart,{passive:false});
 document.addEventListener('touchmove',lcuGridTouchMove,{passive:false});
 document.addEventListener('touchend',lcuStopPainting);
+document.addEventListener('touchcancel',lcuStopPainting);
+window.addEventListener('blur',lcuStopPainting);
 </script>
 </body>
 </html>
