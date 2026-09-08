@@ -681,6 +681,7 @@ let lcuGrid={};
 let lcuTool='50x100FLAT';
 let lcuPainting=false;
 let lcuEraseMode=false;
+let lcuPairs={};        // "r,c" -> "r2,c" : le due metà che formano UNO stesso modulo 100x50
 let lcuSelections=[];   // array di {id,num,cells:Set()} — selezioni multiple indipendenti
 let lcuActiveSelId=null;
 let lcuSelCounter=0;
@@ -1454,7 +1455,16 @@ function applyLcuSize(){
   const onGrid=v=>Math.round(v*100)%50===0;
   if(!onGrid(w)||!onGrid(h)){invEl.textContent='⚠️ Larghezza e altezza devono essere multipli di 0,5m.';invEl.classList.add('show');return;}
   lcuW=w;lcuH=h;lcuCols=Math.round(w/0.5);lcuRows=Math.round(h/0.5);
-  Object.keys(lcuGrid).forEach(k=>{const[r,c]=k.split(',').map(Number);if(r>=lcuRows||c>=lcuCols)delete lcuGrid[k];});
+  // se una delle due metà di un 100x50 finisce fuori dai nuovi limiti, va tolto il modulo intero:
+  // lasciare dentro la metà rimasta produrrebbe un quadrato grigio orfano
+  Object.keys(lcuPairs).forEach(k=>{
+    const partner=lcuPairs[k];if(partner===undefined)return;
+    const[r,c]=k.split(',').map(Number),[pr,pc]=partner.split(',').map(Number);
+    if(r>=lcuRows||c>=lcuCols||pr>=lcuRows||pc>=lcuCols){
+      delete lcuGrid[k];delete lcuGrid[partner];delete lcuPairs[k];delete lcuPairs[partner];
+    }
+  });
+  Object.keys(lcuGrid).forEach(k=>{const[r,c]=k.split(',').map(Number);if(r>=lcuRows||c>=lcuCols){delete lcuGrid[k];delete lcuPairs[k];}});
   lcuSelections.forEach(sel=>{Array.from(sel.cells).forEach(k=>{const[r,c]=k.split(',').map(Number);if(r>=lcuRows||c>=lcuCols)sel.cells.delete(k);});});
   renderLedwallCustom();
 }
@@ -1505,10 +1515,19 @@ function lcuCellRing(r,c){
 // Il modulo 100x50 è alto il doppio di uno 50x50 (0,5 x 1,0 m): occupa sempre 2 celle
 // verticali della griglia da 0,5m, mai una sola — altrimenti superficie e risoluzione
 // pixel risultano dimezzate in altezza rispetto alla realtà.
-function lcuFindPairRow(r,c){
-  if(lcuGrid[(r+1)+','+c]==='50x100FLAT')return r+1;
-  if(lcuGrid[(r-1)+','+c]==='50x100FLAT')return r-1;
-  return null;
+// Le due metà sono registrate in lcuPairs: serve sapere con certezza QUALE cella fa coppia
+// con quale. Dedurlo dai vicini non basta — con tre o più celle 100x50 in colonna si finisce
+// per cancellare la metà sbagliata, lasciando un quadrato grigio orfano.
+function lcuRemoveModuleAt(r,c){
+  const key=r+','+c;
+  const partner=lcuPairs[key];
+  if(partner!==undefined){
+    delete lcuPairs[key];
+    delete lcuPairs[partner];
+    const p=partner.split(',');
+    lcuSetCell(parseInt(p[0]),parseInt(p[1]),null);
+  }
+  lcuSetCell(r,c,null);
 }
 function lcuSetCell(r,c,type){
   const key=r+','+c;
@@ -1536,36 +1555,43 @@ function lcuPaintCell(r,c){
     if(lcuGrid[key]===undefined)return; // non si può selezionare una cella senza modulo disegnato
     const sel=lcuGetActiveSelection();
     if(!sel)return;
-    if(sel.cells.has(key))sel.cells.delete(key);else sel.cells.add(key);
-    const el=document.querySelector('.lcu-cell[data-r="'+r+'"][data-c="'+c+'"]');
-    if(el)el.style.boxShadow=lcuCellRing(r,c);
+    // la selezione lavora sul MODULO intero: un 100x50 entra o esce con entrambe le metà,
+    // altrimenti il rettangolo di ingombro (e quindi la risoluzione pixel) risulta sbagliato
+    const keys=[key];
+    if(lcuPairs[key]!==undefined)keys.push(lcuPairs[key]);
+    const wasSelected=sel.cells.has(key);
+    keys.forEach(k=>{
+      if(wasSelected)sel.cells.delete(k);else sel.cells.add(k);
+      const p=k.split(',');
+      const el=document.querySelector('.lcu-cell[data-r="'+p[0]+'"][data-c="'+p[1]+'"]');
+      if(el)el.style.boxShadow=lcuCellRing(parseInt(p[0]),parseInt(p[1]));
+    });
     const countEl=document.getElementById('lcu-chip-count-'+sel.id);
     if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
     return;
   }
-  // ripassare in trascinamento su una cella già del tipo corretto non deve fare nulla:
-  // altrimenti il ripasso sulla metà di una coppia 100x50 già piazzata la romperebbe
-  // e la ricreerebbe spostata, "scivolando" lungo il trascinamento.
   if(lcuTool==='eraser'){
     if(lcuGrid[key]===undefined)return;
-  }else if(lcuGrid[key]===lcuTool){
-    return;
-  }
-  // se la cella colpita è già metà di un modulo 100x50, libera anche l'altra metà
-  if(lcuGrid[key]==='50x100FLAT'){
-    const pr=lcuFindPairRow(r,c);
-    if(pr!==null)lcuSetCell(pr,c,null);
-  }
-  if(lcuTool==='eraser'){
-    lcuSetCell(r,c,null);
+    lcuRemoveModuleAt(r,c); // cancella il modulo intero, entrambe le metà se 100x50
     return;
   }
   if(lcuTool==='50x100FLAT'){
-    lcuSetCell(r,c,'50x100FLAT');
+    // già un modulo 100x50 completo qui: il ripasso in trascinamento non deve rifarlo
+    if(lcuGrid[key]==='50x100FLAT'&&lcuPairs[key]!==undefined)return;
     const r2=r+1<lcuRows?r+1:(r-1>=0?r-1:null);
-    if(r2!==null)lcuSetCell(r2,c,'50x100FLAT');
+    if(r2===null)return; // tavolozza alta una sola cella: un 100x50 non ci sta
+    // libera i moduli preesistenti su entrambe le celle di destinazione, per intero
+    if(lcuGrid[key]!==undefined)lcuRemoveModuleAt(r,c);
+    if(lcuGrid[r2+','+c]!==undefined)lcuRemoveModuleAt(r2,c);
+    lcuSetCell(r,c,'50x100FLAT');
+    lcuSetCell(r2,c,'50x100FLAT');
+    lcuPairs[key]=r2+','+c;
+    lcuPairs[r2+','+c]=key;
     return;
   }
+  // strumenti 50x50: ripassare su una cella già corretta non fa nulla
+  if(lcuGrid[key]===lcuTool)return;
+  if(lcuGrid[key]!==undefined)lcuRemoveModuleAt(r,c);
   lcuSetCell(r,c,lcuTool);
 }
 function lcuGridMouseDown(e){
@@ -1677,11 +1703,16 @@ function renderLcuResults(){
     sel.cells.forEach(k=>{const[r,c]=k.split(',').map(Number);minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);const t=lcuGrid[k];if(t)typesPresent.add(t);});
     const selW=(maxC-minC+1)*0.5,selH=(maxR-minR+1)*0.5;
     const rxSel=Math.floor(ppm*selW),rySel=Math.floor(ppm*selH);
+    // conteggio moduli reali: le due metà di un 100x50 valgono un modulo solo
+    const moduleIds=new Set();
+    sel.cells.forEach(k=>{const partner=lcuPairs[k];moduleIds.add(partner!==undefined?[k,partner].sort().join('|'):k);});
+    const selMq=Math.round(sel.cells.size*0.25*100)/100;
     const typeColors=Array.from(typesPresent).map(t=>COL[t]);
     const accent=typeColors.length===1?typeColors[0]:'#BEA050';
     const dotsHtml=typeColors.map(c=>`<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};flex-shrink:0"></span>`).join('');
     pixelHtml+=`<div style="margin-top:8px;background:${lcuHexToRgba(accent,0.08)};border:1px dashed ${lcuHexToRgba(accent,0.5)};border-radius:10px;padding:9px">
-      <div style="font-size:10px;color:${accent};margin-bottom:3px;display:flex;align-items:center;gap:5px">${dotsHtml}<span>Selezione ${sel.num} (${sel.cells.size} moduli, ${selW.toLocaleString('it-IT')}×${selH.toLocaleString('it-IT')}m)</span></div>
+      <div style="font-size:10px;color:${accent};margin-bottom:4px;display:flex;align-items:center;gap:5px">${dotsHtml}<span>Selezione ${sel.num} — ${moduleIds.size} ${moduleIds.size===1?'modulo':'moduli'} · ${selMq.toLocaleString('it-IT')} mq</span></div>
+      <div style="font-size:12px;color:var(--tm);margin-bottom:3px">Base ${selW.toLocaleString('it-IT')} m × Altezza ${selH.toLocaleString('it-IT')} m</div>
       <div style="font-size:15px;font-weight:700">${rxSel.toLocaleString('it-IT')} × ${rySel.toLocaleString('it-IT')} px</div>
     </div>`;
   });
@@ -1700,7 +1731,7 @@ function renderLedwallCustom(){
 }
 function resetLedwallCustom(){
   lcuW=0;lcuH=0;lcuCols=0;lcuRows=0;
-  lcuGrid={};lcuSelections=[];lcuActiveSelId=null;lcuSelCounter=0;
+  lcuGrid={};lcuPairs={};lcuSelections=[];lcuActiveSelId=null;lcuSelCounter=0;
   lcuTool='50x100FLAT';lcuPainting=false;
   document.getElementById('lcu-w').value='';
   document.getElementById('lcu-h').value='';
@@ -1751,7 +1782,10 @@ function exportPDFLedwallCustom(){
       const selW=(maxC-minC+1)*0.5,selH=(maxR-minR+1)*0.5;
       const rxSel=Math.floor(ppm*selW),rySel=Math.floor(ppm*selH);
       const typeLabel=typesPresent.size===1?LCU_LABELS[Array.from(typesPresent)[0]]:'misto';
-      addRow('Selezione '+sel.num+' — '+typeLabel+' ('+sel.cells.size+' moduli)',rxSel.toLocaleString('it-IT')+' × '+rySel.toLocaleString('it-IT')+' px');
+      const moduleIds=new Set();
+      sel.cells.forEach(k=>{const partner=lcuPairs[k];moduleIds.add(partner!==undefined?[k,partner].sort().join('|'):k);});
+      addRow('Selezione '+sel.num+' — '+typeLabel+' ('+moduleIds.size+' moduli)',rxSel.toLocaleString('it-IT')+' × '+rySel.toLocaleString('it-IT')+' px');
+      addRow('   Base × Altezza',selW.toLocaleString('it-IT')+' × '+selH.toLocaleString('it-IT')+' m');
     });
     y+=4;
     const kw=Math.round(totalMq*0.24*2*100)/100,linee=Math.ceil(kw/3);
