@@ -1758,7 +1758,7 @@ function renderLcuCanvas(){
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">${selChipsHtml}</div>
-      <div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div>
+      <div style="overflow-x:auto;overflow-y:hidden;max-width:100%;padding-bottom:6px"><div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div></div>
       <div class="leg" style="margin-top:12px">
         <div class="li"><div class="ld" style="background:${COL['50x100FLAT']}"></div><span>50x100 FLAT</span></div>
         <div class="li"><div class="ld" style="background:${COL['50x50FLAT']}"></div><span>50x50 FLAT</span></div>
