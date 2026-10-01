@@ -1750,7 +1750,7 @@ function renderLcuCanvas(){
       ${paletteHtml}
       <div style="font-size:11px;color:var(--ts);line-height:1.5;margin-top:4px">Clicca un modulo poi disegna sulla griglia trascinando. Crea una o più selezioni per calcolare la risoluzione pixel di ogni area separatamente (es. le gambe e la traversa di un portale).</div>
     </div>
-    <div>
+    <div style="min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <div style="font-size:11px;color:var(--tm)">griglia 0,5 m — ${lcuW.toLocaleString('it-IT')} × ${lcuH.toLocaleString('it-IT')} m</div>
         <div class="lcu-tb-btn${lcuTool==='select'?' act':''}" onclick="setLcuTool('select')" title="Seleziona area">
