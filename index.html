@@ -125,7 +125,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
 .lcu-tool{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:transparent}
 .lcu-tool.act{border-color:var(--gold);background:rgba(190,160,80,0.1)}
 .lcu-swatch{width:22px;height:22px;border-radius:5px;flex-shrink:0}
-.lcu-grid{display:grid;gap:2px;justify-content:center;touch-action:none}
+.lcu-grid{display:grid;gap:2px;justify-content:start;touch-action:none}
 .lcu-cell{width:28px;height:28px;border-radius:3px;border:1px solid rgba(255,255,255,0.05);cursor:pointer}
 .lcu-tb-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent}
 .lcu-tb-btn.act{background:rgba(190,160,80,0.22);border-color:rgba(190,160,80,0.4)}
@@ -1766,7 +1766,7 @@ function renderLcuCanvas(){
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">${selChipsHtml}</div>
       <div class="lcu-scroll" style="overflow-x:auto;overflow-y:hidden;max-width:100%;padding:3px 3px 9px 3px">
-        <div class="lcu-ruler" style="grid-template-columns:repeat(${lcuCols},28px)">${Array.from({length:lcuCols},(_,c)=>`<span style="grid-column:${c+1}">${c%2===0?(c*0.5).toLocaleString('it-IT')+'m':''}</span>`).join('')}</div>
+        <div class="lcu-ruler" style="grid-template-columns:repeat(${lcuCols},28px)">${Array.from({length:lcuCols},(_,c)=>{const isLast=c===lcuCols-1;const lbl=isLast?lcuW.toLocaleString('it-IT')+'m':(c%2===0?(c*0.5).toLocaleString('it-IT')+'m':'');return `<span style="grid-column:${c+1}${isLast?';text-align:right':''}">${lbl}</span>`;}).join('')}</div>
         <div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div>
       </div>
       <div class="leg" style="margin-top:12px">
