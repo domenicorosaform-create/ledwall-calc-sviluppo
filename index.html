@@ -129,6 +129,13 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
 .lcu-cell{width:28px;height:28px;border-radius:3px;border:1px solid rgba(255,255,255,0.05);cursor:pointer}
 .lcu-tb-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent}
 .lcu-tb-btn.act{background:rgba(190,160,80,0.22);border-color:rgba(190,160,80,0.4)}
+.lcu-scroll{scrollbar-color:#6a6a7a transparent;scrollbar-width:thin}
+.lcu-scroll::-webkit-scrollbar{height:10px}
+.lcu-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,0.04);border-radius:6px}
+.lcu-scroll::-webkit-scrollbar-thumb{background:#6a6a7a;border-radius:6px}
+.lcu-scroll::-webkit-scrollbar-thumb:hover{background:#85859a}
+.lcu-ruler{display:grid;gap:2px;font-size:9px;color:var(--ts);margin-bottom:3px;white-space:nowrap}
+.lcu-ruler span{text-align:left;overflow:visible}
 /* ===== MOBILE RESPONSIVE — STILE LOVABLE ===== */
 @media(max-width:768px){
   .cnt{padding:12px 14px}
@@ -1758,7 +1765,10 @@ function renderLcuCanvas(){
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">${selChipsHtml}</div>
-      <div style="overflow-x:auto;overflow-y:hidden;max-width:100%;padding-bottom:6px"><div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div></div>
+      <div class="lcu-scroll" style="overflow-x:auto;overflow-y:hidden;max-width:100%;padding:3px 3px 9px 3px">
+        <div class="lcu-ruler" style="grid-template-columns:repeat(${lcuCols},28px)">${Array.from({length:lcuCols},(_,c)=>`<span style="grid-column:${c+1}">${c%2===0?(c*0.5).toLocaleString('it-IT')+'m':''}</span>`).join('')}</div>
+        <div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div>
+      </div>
       <div class="leg" style="margin-top:12px">
         <div class="li"><div class="ld" style="background:${COL['50x100FLAT']}"></div><span>50x100 FLAT</span></div>
         <div class="li"><div class="ld" style="background:${COL['50x50FLAT']}"></div><span>50x50 FLAT</span></div>
