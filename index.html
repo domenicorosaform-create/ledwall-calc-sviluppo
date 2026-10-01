@@ -450,6 +450,51 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
   </div>
 </div>
 <div class="divider"></div>
+<!-- LEDWALL A U LOTTO 5 -->
+<div class="card">
+  <div class="ch">
+    <div class="ct">🧲 Ledwall a U Lotto 5</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="btn-exp-lu" style="display:none" onclick="exportPDFLottoU()">📄 Esporta PDF</button>
+      <button class="btn btn-ghost" onclick="resetLottoU()">↺ Reset</button>
+    </div>
+  </div>
+  <div class="cb">
+    <div class="g3">
+      <div class="fld"><label>Segmento 1 (metri)</label><input type="text" id="lu-s1" inputmode="decimal" placeholder="es. 3" oninput="renderLottoU()"></div>
+      <div class="fld"><label>Segmento 2 <span style="font-size:10px;color:var(--ts)">— fondo della U, min 2 m</span></label><input type="text" id="lu-s2" inputmode="decimal" placeholder="es. 4" oninput="renderLottoU()"></div>
+      <div class="fld"><label>Segmento 3 (metri)</label><input type="text" id="lu-s3" inputmode="decimal" placeholder="es. 3" oninput="renderLottoU()"></div>
+    </div>
+    <div class="g3" style="margin-top:10px">
+      <div class="fld"><label>Altezza (metri)</label><input type="text" id="lu-alt" inputmode="decimal" placeholder="es. 2" oninput="renderLottoU()"></div>
+    </div>
+    <div class="chk-row">
+      <input type="checkbox" id="chk-solo50-u" style="width:17px;height:17px;accent-color:#f59e0b;cursor:pointer" onchange="renderLottoU()">
+      <label id="lbl-solo50-u" for="chk-solo50-u" style="font-size:13px;cursor:pointer;color:var(--tm)">Flaggare per usare solo moduli 50×50</label>
+    </div>
+    <div id="lu-invalid" class="lt-warn danger"></div>
+  </div>
+</div>
+<div id="lu-result" style="display:none">
+  <div class="card">
+    <div class="ch"><div class="ct" id="lu-title">📊 Risultato</div></div>
+    <div class="cb">
+      <div class="sg" id="lu-summary"></div>
+      <div class="leg" id="lu-legend"></div>
+      <div class="fvw"><h4>📐 Vista Frontale</h4><div id="front-svg-u" style="overflow-x:auto"></div></div>
+      <div id="plan-wrap-u"></div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:500;color:var(--tm);margin-bottom:10px">📺 Risoluzione Pixel</div>
+        <div class="sg" id="lu-pixel"></div>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:500;color:var(--tm);margin-bottom:10px">📦 Specifiche LOTTO 5</div>
+        <div class="lc act" id="lu-spec"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="divider"></div>
 <!-- LEDWALL CURVO LOTTO 5 -->
 <div class="card">
   <div class="ch">
@@ -775,6 +820,7 @@ let l5s1=0,l5s2=0,l5alt=0,solo50=false;
 let lcs1=0,lcs2=0,lccurve=0,lcalt=0,lcsolo50=false;
 let l5Rot=0,l5Mirror=false;
 let lcRot=0,lcMirror=false;
+let luS1=0,luS2=0,luS3=0,luAlt=0,luSolo50=false,luRot=0,luMirror=false;
 // ===== LEDWALL CUSTOM =====
 let lcuW=0,lcuH=0,lcuCols=0,lcuRows=0;
 let lcuGrid={};
@@ -1264,6 +1310,265 @@ function exportPDFLotto5(){
     for(let i=1;i<=total;i++){doc.setPage(i);doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,ph-15,pw-mg,ph-15);doc.setFontSize(7.5);doc.setTextColor(sub.r,sub.g,sub.b);doc.setFont('helvetica','normal');doc.text('FORM.THE CREATIVE GROUP  |  Ledwall ad Angolo Lotto 5'+(nomeProg?' — '+nomeProg:''),mg,ph-10);doc.text(i+' / '+total,pw-mg,ph-10,{align:'right'});}
     const cfg=hasAngle?`angolo_${l5s1}+${l5s2}`:`dritto_${l5s1}m`;
     doc.save('Ledwall_Angolo_Lotto5_'+cfg+'_'+new Date().toISOString().split('T')[0]+'.pdf');
+  }catch(e){alert('Attendere il caricamento della libreria PDF e riprovare.');}
+}
+// ===== LOTTO 5 A U =====
+// Tre segmenti e due angoli a 90° girati dallo stesso lato. Segmento 1 e 3 usano buildSeq così com'è
+// (1m di transizione FLAT+TAGLIATO verso l'angolo); il segmento centrale tocca DUE angoli, quindi ha
+// la stessa transizione a entrambe le estremità: 200cm in tutto, lunghezza minima 2m.
+function buildSeqMid(segM,solo){
+  const blocks=[],segCm=Math.round(segM*100),transC=200;
+  if(segCm<transC)return[];
+  const linC=segCm-transC,numLin=Math.floor(linC/50);
+  const ft=solo?'50x50FLAT':'50x100FLAT';
+  blocks.push({type:'50x50TAGLIATO'});blocks.push({type:'50x50FLAT'});
+  for(let i=0;i<numLin;i++)blocks.push({type:ft});
+  blocks.push({type:'50x50FLAT'});blocks.push({type:'50x50TAGLIATO'});
+  return blocks;
+}
+function luValidate(){
+  const onGrid=v=>Math.round(v*100)%50===0;
+  const bad=[];
+  if(!onGrid(luS1))bad.push('Segmento 1');
+  if(!onGrid(luS2))bad.push('Segmento 2');
+  if(!onGrid(luS3))bad.push('Segmento 3');
+  if(!onGrid(luAlt))bad.push('Altezza');
+  if(bad.length)return `⚠️ Dato non valido: ${bad.join(', ')} deve essere un multiplo di 0,5m.`;
+  const corti=[];
+  if(luS1<1)corti.push('Segmento 1 (minimo 1m)');
+  if(luS2<2)corti.push('Segmento 2 (minimo 2m: ha un angolo a ogni estremità)');
+  if(luS3<1)corti.push('Segmento 3 (minimo 1m)');
+  if(corti.length)return `⚠️ Dato non valido: ${corti.join(', ')}.`;
+  return '';
+}
+// Calcolo condiviso da vista live e PDF: stesse formule della sezione Angolo (colH, mq, kW).
+function luCompute(){
+  const s1b=buildSeq(luS1,true,luSolo50),s2b=buildSeqMid(luS2,luSolo50),s3b=buildSeq(luS3,false,luSolo50);
+  const seq=[...s1b,...s2b,...s3b];
+  const totalMq=Math.round((luS1+luS2+luS3)*luAlt*100)/100;
+  const c100=seq.filter(b=>b.type==='50x100FLAT').length,c50f=seq.filter(b=>b.type==='50x50FLAT').length,c50t=seq.filter(b=>b.type==='50x50TAGLIATO').length;
+  const {n100,n50ex,n50}=colH(luAlt);
+  const mq100=c100*n100*0.5,mq50f=(c50f*n50+c100*n50ex)*0.25,mq50t=c50t*n50*0.25;
+  return{s1b,s2b,s3b,seq,totalMq,c100,c50f,c50t,n100,n50ex,n50,mq100,mq50f,mq50t};
+}
+// Geometria della pianta nel riquadro locale "⊐": seg1 in alto verso destra, seg2 a destra verso il basso,
+// seg3 in basso verso sinistra. I TAGLIATO sono gli stessi trapezi della vista Angolo (quelli in basso
+// specchiati in verticale). Chi disegna scambia x↔y: così la U risulta aperta verso l'alto, con seg1 a sinistra.
+// Usata sia dalla vista live sia dal PDF, così le due piante non possono divergere.
+function luPlanShapes(s1b,s2b,s3b,cW,d,gap,m,L,lens){
+  const hLin=s1b.slice(0,-2),hFlat=s1b[s1b.length-2],hTag=s1b[s1b.length-1];
+  const vTag=s2b[0],vMid=s2b.slice(1,-1),vTagB=s2b[s2b.length-1];
+  const bTag=s3b[0],bFlat=s3b[1],bLin=s3b.slice(2);
+  const cornerX=m+Math.max(hLin.length,bLin.length)*(cW+gap); // x d'inizio del FLAT di transizione, uguale sopra e sotto
+  const hFlatEnd=cornerX+cW+gap,outerX=hFlatEnd+cW,innerX=outerX-d;
+  const oy=m+2*L,innerY=oy+d,vTagBot=oy+cW;
+  const yb=vTagBot+vMid.length*(cW+gap)+gap;           // inizio del TAGLIATO verticale in basso
+  const outerYb=yb+cW,innerYb=outerYb-d;
+  const sh=[];
+  hLin.forEach((b,i)=>sh.push({k:'r',x:cornerX-(hLin.length-i)*(cW+gap),y:oy,w:cW,h:d,t:b.type}));
+  sh.push({k:'r',x:cornerX,y:oy,w:cW,h:d,t:hFlat.type});
+  sh.push({k:'p',pts:[[hFlatEnd,oy],[outerX,oy],[innerX,innerY],[hFlatEnd,innerY]],t:hTag.type});
+  sh.push({k:'p',pts:[[innerX,innerY],[outerX,oy],[outerX,vTagBot],[innerX,vTagBot]],t:vTag.type});
+  vMid.forEach((b,i)=>sh.push({k:'r',x:innerX,y:vTagBot+gap+i*(cW+gap),w:d,h:cW,t:b.type}));
+  sh.push({k:'p',pts:[[innerX,yb],[outerX,yb],[outerX,outerYb],[innerX,innerYb]],t:vTagB.type});
+  sh.push({k:'p',pts:[[hFlatEnd,innerYb],[innerX,innerYb],[outerX,outerYb],[hFlatEnd,outerYb]],t:bTag.type});
+  sh.push({k:'r',x:cornerX,y:innerYb,w:cW,h:d,t:bFlat.type});
+  bLin.forEach((b,i)=>sh.push({k:'r',x:cornerX-(i+1)*(cW+gap),y:innerYb,w:cW,h:d,t:b.type}));
+  const start1=cornerX-hLin.length*(cW+gap),start3=cornerX-bLin.length*(cW+gap);
+  const labels=[
+    {x:(start1+outerX)/2,y:oy-L,x1:start1,y1:oy,x2:outerX,y2:oy,txt:lens[0]+'m'},
+    {x:outerX+L,y:(oy+outerYb)/2,x1:outerX,y1:oy,x2:outerX,y2:outerYb,txt:lens[1]+'m'},
+    {x:(start3+outerX)/2,y:outerYb+L,x1:start3,y1:outerYb,x2:outerX,y2:outerYb,txt:lens[2]+'m'},
+  ];
+  return{shapes:sh,labels,Wl:outerX+2*L+m,Hl:outerYb+2*L+m};
+}
+function luPlanToolbar(){
+  return `<div style="display:flex;gap:6px;align-items:center">
+    <button type="button" class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="rotatePlanLU()" title="Ruota anteprima di 90°">⟳ Ruota${luRot?' '+luRot+'°':''}</button>
+    <button type="button" class="btn btn-ghost" style="padding:5px 10px;font-size:12px${luMirror?';background:rgba(190,160,80,0.22);color:var(--gold2)':''}" onclick="mirrorPlanLU()" title="Specchia anteprima">⇋ Specchia</button>
+  </div>`;
+}
+function rotatePlanLU(){luRot=(luRot+90)%360;renderLottoU();}
+function mirrorPlanLU(){luMirror=!luMirror;renderLottoU();}
+function resetLottoU(){
+  luS1=0;luS2=0;luS3=0;luAlt=0;luSolo50=false;luRot=0;luMirror=false;
+  ['lu-s1','lu-s2','lu-s3','lu-alt'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('chk-solo50-u').checked=false;
+  document.getElementById('lbl-solo50-u').textContent='Flaggare per usare solo moduli 50×50';
+  document.getElementById('lbl-solo50-u').style.color='var(--tm)';
+  const invEl=document.getElementById('lu-invalid');invEl.classList.remove('show');invEl.textContent='';
+  renderLottoU();
+}
+function renderLottoU(){
+  luS1=pd(document.getElementById('lu-s1').value);
+  luS2=pd(document.getElementById('lu-s2').value);
+  luS3=pd(document.getElementById('lu-s3').value);
+  luAlt=pd(document.getElementById('lu-alt').value);
+  luSolo50=document.getElementById('chk-solo50-u').checked;
+  const lbl=document.getElementById('lbl-solo50-u');
+  lbl.textContent=luSolo50?'Solo moduli 50×50 attivo':'Flaggare per usare solo moduli 50×50';
+  lbl.style.color=luSolo50?'#f59e0b':'var(--tm)';
+  const res=document.getElementById('lu-result'),btn=document.getElementById('btn-exp-lu');
+  const invEl=document.getElementById('lu-invalid');
+  invEl.classList.remove('show');invEl.textContent='';
+  if(!luS1||!luS2||!luS3||!luAlt){res.style.display='none';btn.style.display='none';return;}
+  const err=luValidate();
+  if(err){res.style.display='none';btn.style.display='none';invEl.textContent=err;invEl.classList.add('show');return;}
+  res.style.display='block';btn.style.display='inline-flex';
+  const R=luCompute();
+  document.getElementById('lu-title').textContent='📊 Risultato: '+`U ${luS1}+${luS2}+${luS3} h${luAlt}${luSolo50?' (solo 50×50)':''}`;
+  // Summary
+  const items=[];
+  if(!luSolo50)items.push({c:'#6b7280',l:'50x100 FLAT',v:R.mq100+' mq'});
+  items.push({c:'#f43f5e',l:'50x50 FLAT',v:R.mq50f+' mq'});
+  items.push({c:'#4ade80',l:'50x50 TAGLIATO',v:R.mq50t+' mq'});
+  items.push({c:null,l:'TOTALE',v:R.totalMq+' mq',hi:true});
+  document.getElementById('lu-summary').innerHTML=items.map(it=>`<div class="sc${it.hi?' shi':''}"><div class="sl">${it.c?`<div class="ld" style="background:${it.c}"></div>`:''}<span>${it.l}</span></div><div class="sv">${it.v}</div></div>`).join('');
+  const legItems=[{c:'#6b7280',l:'50x100 FLAT'},{c:'#f43f5e',l:'50x50 FLAT'},{c:'#4ade80',l:'50x50 TAGLIATO'}];
+  document.getElementById('lu-legend').innerHTML=legItems.filter(li=>!luSolo50||li.c!=='#6b7280').map(li=>`<div class="li"><div class="ld" style="background:${li.c}"></div><span>${li.l}</span></div>`).join('');
+  // Vista frontale — come l'Angolo: 50x50 FLAT rossi in alto, 100x50 grigi sotto
+  const bW=54,bH100=110,bH50=55,pad=8;
+  const svgW=R.seq.length*bW+pad*2,svgH=Math.ceil(luAlt)*bH100+pad*2+20;
+  let rects='';
+  R.seq.forEach((b,ci)=>{
+    const x=pad+ci*bW;
+    if(b.type==='50x100FLAT'){
+      for(let i=0;i<R.n50ex;i++)rects+=`<rect x="${x}" y="${pad+i*bH50}" width="${bW-1}" height="${bH50-1}" fill="${COL['50x50FLAT']}" rx="2"/>`;
+      for(let i=0;i<R.n100;i++)rects+=`<rect x="${x}" y="${pad+R.n50ex*bH50+i*bH100}" width="${bW-1}" height="${bH100-1}" fill="${COL['50x100FLAT']}" rx="2"/>`;
+    }else{
+      for(let i=0;i<R.n50;i++)rects+=`<rect x="${x}" y="${pad+i*bH50}" width="${bW-1}" height="${bH50-1}" fill="${COL[b.type]||'#888'}" rx="2"/>`;
+    }
+  });
+  document.getElementById('front-svg-u').innerHTML=`<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="max-height:280px">${rects}</svg>`;
+  // Vista in pianta a U (ruota/specchia come le altre sezioni)
+  const g=luPlanShapes(R.s1b,R.s2b,R.s3b,40,16,1,10,9,[luS1,luS2,luS3]);
+  const Wt=g.Hl,Ht=g.Wl; // dopo lo scambio x↔y
+  const tXY=(x,y)=>planXY(y,x,Wt,Ht,luRot,luMirror);
+  const[fw,fh]=planDims(Wt,Ht,luRot);
+  const stroke='rgba(255,255,255,0.3)';
+  let out='';
+  g.shapes.forEach(s=>{
+    const pts=s.k==='r'?[[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]]:s.pts;
+    out+=`<polygon points="${pts.map(p=>tXY(p[0],p[1]).join(',')).join(' ')}" fill="${COL[s.t]||'#888'}" stroke="${stroke}" stroke-width="0.8"/>`;
+  });
+  g.labels.forEach(l=>{
+    const[a,b]=tXY(l.x,l.y);
+    const ang=planAngle(l.y1,l.x1,l.y2,l.x2,Wt,Ht,luRot,luMirror);
+    out+=`<text x="${a}" y="${b}" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="rgba(96,165,250,0.8)" font-weight="600" transform="rotate(${ang},${a},${b})">${l.txt}</text>`;
+  });
+  document.getElementById('plan-wrap-u').innerHTML=`<div class="pvw"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;flex-wrap:wrap"><h4 style="margin:0">🗺️ Vista in Pianta (dall'alto)</h4>${luPlanToolbar()}</div><div style="overflow-x:auto"><svg viewBox="0 0 ${fw} ${fh}" width="100%" style="max-height:420px">${out}</svg></div></div>`;
+  // Risoluzione pixel — stessa formula della sezione Angolo (passo 2.6mm)
+  const ppm=Math.floor(1000/2.6);
+  const ry=Math.floor(ppm*luAlt);
+  const px=v=>`${Math.floor(ppm*v).toLocaleString('it-IT')} × ${ry.toLocaleString('it-IT')} px`;
+  const pixItems=[
+    {l:'Pixel Totali',v:px(luS1+luS2+luS3),hi:true},
+    {l:`Segmento 1 (${luS1}m)`,v:px(luS1)},
+    {l:`Segmento 2 (${luS2}m)`,v:px(luS2)},
+    {l:`Segmento 3 (${luS3}m)`,v:px(luS3)},
+  ];
+  document.getElementById('lu-pixel').innerHTML=pixItems.map(it=>`<div class="sc${it.hi?' shi':''}"><div class="sl"><span>${it.l}</span></div><div class="sv">${it.v}</div></div>`).join('');
+  const kw=Math.round((R.totalMq*0.24)*2*100)/100,linee=Math.ceil(((R.totalMq*0.24)*2)/3);
+  document.getElementById('lu-spec').innerHTML=`
+    <div class="lbadge ba" style="margin-bottom:5px">LOTTO 5</div>
+    <div class="lp">PASSO: 2.6 mm</div>
+    <div class="lr"><span>📐 Superficie:</span><span>${R.totalMq.toFixed(2)} mq</span></div>
+    <div class="lr"><span>⚡ Linee:</span><span>${linee}</span></div>
+    <div class="lr"><span>📦 Fascetta lat.:</span><span>74mm</span></div>
+    <div class="lr"><span>📏 Fasc. solo a terra:</span><span>no</span></div>
+    <div class="lr"><span>💡 Potenza:</span><span>${kw} kW</span></div>`;
+}
+// ===== PDF LOTTO 5 A U =====
+function exportPDFLottoU(){
+  if(!luS1||!luS2||!luS3||!luAlt||luValidate())return;
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF('p','mm','a4');
+    const pw=doc.internal.pageSize.getWidth(),ph=doc.internal.pageSize.getHeight();
+    const mg=18,cw=pw-2*mg;
+    const gold={r:190,g:160,b:80},dk={r:40,g:40,b:45},sub={r:120,g:120,b:130},lb={r:248,g:248,b:252};
+    const date=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'});
+    const nomeProg=document.getElementById('nome-progetto').value||'';
+    let y=mg;
+    const addHeader=()=>{doc.setFillColor(gold.r,gold.g,gold.b);doc.rect(0,0,pw,2,'F');doc.setFillColor(255,255,255);doc.rect(0,2,pw,26,'F');doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,28,pw-mg,28);doc.setTextColor(dk.r,dk.g,dk.b);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('FORM.THE CREATIVE GROUP',mg,13);doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(sub.r,sub.g,sub.b);doc.text('Ledwall a U Lotto 5'+(nomeProg?' — '+nomeProg:'')+'  |  Report tecnico',mg,19);doc.setFontSize(8);doc.text(date,pw-mg,13,{align:'right'});y=36;};
+    const chk=(n)=>{if(y+n>ph-20){doc.addPage();addHeader();}};
+    const addSec=(t)=>{chk(18);doc.setFillColor(gold.r,gold.g,gold.b);doc.rect(mg,y,3,9,'F');doc.setFillColor(lb.r,lb.g,lb.b);doc.rect(mg+3,y,cw-3,9,'F');doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(dk.r,dk.g,dk.b);doc.text(t,mg+7,y+6.5);y+=14;};
+    const addRow=(l,v,hi=false)=>{chk(8);doc.setFontSize(9.5);if(hi){doc.setFillColor(245,248,255);doc.rect(mg+2,y-4,cw-4,7,'F');}doc.setDrawColor(235,235,240);doc.setLineWidth(0.15);doc.line(mg+4,y+1.5,pw-mg-4,y+1.5);doc.setFont('helvetica','normal');doc.setTextColor(sub.r,sub.g,sub.b);doc.text(l,mg+6,y);doc.setFont('helvetica',hi?'bold':'normal');doc.setTextColor(dk.r,dk.g,dk.b);doc.text(v,pw-mg-6,y,{align:'right'});y+=7;};
+    const rgbOf=t=>{const h=(COL[t]||'#888888').replace('#','');return[parseInt(h.substring(0,2),16),parseInt(h.substring(2,4),16),parseInt(h.substring(4,6),16)];};
+    addHeader();
+    const R=luCompute();
+    if(nomeProg){addSec('Progetto');addRow('Nome',nomeProg);y+=4;}
+    addSec('Configurazione U');
+    addRow('Segmento 1',luS1+' m');
+    addRow('Segmento 2 (fondo della U)',luS2+' m');
+    addRow('Segmento 3',luS3+' m');
+    addRow('Altezza',luAlt+' m');
+    addRow('Tipo','U '+luS1+'+'+luS2+'+'+luS3);
+    if(luSolo50)addRow('Modalità','Solo moduli 50×50');y+=4;
+    addSec('Impegno Moduli');
+    if(!luSolo50)addRow('50x100 FLAT',R.mq100+' mq');
+    addRow('50x50 FLAT',R.mq50f+' mq');
+    addRow('50x50 TAGLIATO',R.mq50t+' mq');
+    addRow('Superficie totale',R.totalMq+' mq',true);y+=4;
+    const cab100=R.c100*R.n100,cab50f=R.c50f*R.n50+R.c100*R.n50ex,cab50t=R.c50t*R.n50,cabTot=cab100+cab50f+cab50t;
+    addSec('Conteggio Cabinet');
+    if(!luSolo50&&cab100>0)addRow('Cabinet 50x100 FLAT',''+cab100);
+    if(cab50f>0)addRow('Cabinet 50x50 FLAT',''+cab50f);
+    if(cab50t>0)addRow('Cabinet 50x50 TAGLIATO',''+cab50t);
+    addRow('Totale cabinet',''+cabTot,true);y+=4;
+    const ppm=Math.floor(1000/2.6),ry=Math.floor(ppm*luAlt);
+    const px=v=>Math.floor(ppm*v).toLocaleString('it-IT')+' × '+ry.toLocaleString('it-IT')+' px';
+    addSec('Risoluzione Pixel');
+    addRow('Pixel Totali',px(luS1+luS2+luS3),true);
+    addRow('Segmento 1 ('+luS1+'m)',px(luS1));
+    addRow('Segmento 2 ('+luS2+'m)',px(luS2));
+    addRow('Segmento 3 ('+luS3+'m)',px(luS3));
+    y+=4;
+    const kw=Math.round((R.totalMq*0.24)*2*100)/100,linee=Math.ceil(((R.totalMq*0.24)*2)/3);
+    addSec('Specifiche LOTTO 5');
+    addRow('Superficie',R.totalMq.toFixed(2)+' mq');addRow('Potenza',kw+' kW');addRow('N. Linee',''+linee);
+    addRow('Fascetta laterale','74 mm');addRow('Fascetta solo con ledwall a terra','N/A');addRow('Passo','2.6 mm');
+    // Vista frontale
+    doc.addPage();addHeader();addSec('Vista Frontale');
+    const maxPdfW=cw-4;
+    const pBW=Math.min(12,maxPdfW/R.seq.length),pBH100=pBW*2,pBH50=pBW;
+    R.seq.forEach((b,ci)=>{
+      const x=mg+2+ci*pBW;
+      if(b.type==='50x100FLAT'){
+        doc.setFillColor(244,63,94);for(let i=0;i<R.n50ex;i++)doc.rect(x,y+i*pBH50,pBW-0.5,pBH50-0.5,'F');
+        doc.setFillColor(107,114,128);for(let i=0;i<R.n100;i++)doc.rect(x,y+R.n50ex*pBH50+i*pBH100,pBW-0.5,pBH100-0.5,'F');
+      }else{
+        const fc=rgbOf(b.type);doc.setFillColor(fc[0],fc[1],fc[2]);for(let i=0;i<R.n50;i++)doc.rect(x,y+i*pBH50,pBW-0.5,pBH50-0.5,'F');
+      }
+    });
+    y+=Math.max(R.n100*pBH100+R.n50ex*pBH50,R.n50*pBH50)+8;
+    // Vista in pianta — stessa geometria e stessa trasformazione (ruota/specchia) della vista live
+    chk(90);addSec('Vista in Pianta');
+    const g=luPlanShapes(R.s1b,R.s2b,R.s3b,10,4,0.4,2,4,[luS1,luS2,luS3]);
+    const Wt=g.Hl,Ht=g.Wl;
+    const[fw,fh]=planDims(Wt,Ht,luRot);
+    const sc=Math.min(1,maxPdfW/fw,(ph-30-y)/fh);
+    const pOx=mg+2+(maxPdfW-fw*sc)/2,pOy=y;
+    const T=(x,yy)=>{const p=planXY(yy,x,Wt,Ht,luRot,luMirror);return[pOx+p[0]*sc,pOy+p[1]*sc];};
+    g.shapes.forEach(s=>{
+      const pts=(s.k==='r'?[[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]]:s.pts).map(p=>T(p[0],p[1]));
+      const fc=rgbOf(s.t);doc.setFillColor(fc[0],fc[1],fc[2]);
+      const segs=[];for(let i=1;i<pts.length;i++)segs.push([pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]]);
+      doc.lines(segs,pts[0][0],pts[0][1],[1,1],'F',true);
+    });
+    doc.setFontSize(9);doc.setTextColor(100,160,240);doc.setFont('helvetica','bold');
+    // Nel PDF le quote restano orizzontali: il testo ruotato di jsPDF non si posiziona in modo affidabile.
+    // Accanto a un tratto verticale la quota si allinea verso l'esterno, sotto/sopra un tratto orizzontale si centra.
+    g.labels.forEach(l=>{
+      const[a,b]=T(l.x,l.y),p1=T(l.x1,l.y1),p2=T(l.x2,l.y2);
+      const vert=Math.abs(p2[0]-p1[0])<Math.abs(p2[1]-p1[1]);
+      if(vert){const left=a<p1[0];doc.text(l.txt,a+(left?1.5:-1.5),b+1.1,{align:left?'right':'left'});}
+      else doc.text(l.txt,a,b+1.1,{align:'center'});
+    });
+    y+=fh*sc+10;
+    const total=doc.getNumberOfPages();
+    for(let i=1;i<=total;i++){doc.setPage(i);doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,ph-15,pw-mg,ph-15);doc.setFontSize(7.5);doc.setTextColor(sub.r,sub.g,sub.b);doc.setFont('helvetica','normal');doc.text('FORM.THE CREATIVE GROUP  |  Ledwall a U Lotto 5'+(nomeProg?' — '+nomeProg:''),mg,ph-10);doc.text(i+' / '+total,pw-mg,ph-10,{align:'right'});}
+    doc.save('Ledwall_U_Lotto5_U_'+luS1+'+'+luS2+'+'+luS3+'_'+new Date().toISOString().split('T')[0]+'.pdf');
   }catch(e){alert('Attendere il caricamento della libreria PDF e riprovare.');}
 }
 // ===== LOTTO 5 CURVO — RENDER =====
