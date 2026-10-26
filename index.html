@@ -812,6 +812,10 @@ const MODS = [
 ];
 const COL={'50x100FLAT':'#6b7280','50x50FLAT':'#f43f5e','50x50TAGLIATO':'#4ade80','50x50CURVO':'#a855f7'};
 const LCU_LABELS={'50x100FLAT':'100×50 FLAT','50x50FLAT':'50×50 FLAT','50x50TAGLIATO':'50×50 TAGLIATO','50x50CURVO':'50×50 CURVO'};
+// Colori delle selezioni nel PDF: diversi dai colori dei moduli (grigio/rosso/verde/viola), così il cliente
+// distingue a colpo d'occhio a quale parte del ledwall si riferisce ciascuna risoluzione
+const LCU_SEL_COLORS=['#2563eb','#f97316','#0d9488','#db2777','#ca8a04','#0891b2','#4f46e5','#65a30d'];
+function lcuSelRgb(num){const h=LCU_SEL_COLORS[(num-1)%LCU_SEL_COLORS.length].replace('#','');return[parseInt(h.substring(0,2),16),parseInt(h.substring(2,4),16),parseInt(h.substring(4,6),16)];}
 function lcuHexToRgba(hex,alpha){const h=hex.replace('#','');const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);return 'rgba('+r+','+g+','+b+','+alpha+')';}
 const TR=1920/1080;
 // ===== STATE =====
@@ -1910,6 +1914,10 @@ function lcuDeleteSelection(id){
 }
 function lcuCellRing(r,c){
   const key=r+','+c;
+  // la selezione attiva ha la precedenza: un modulo può stare in più selezioni, e se vincesse
+  // sempre la prima della lista il modulo appena aggiunto alla selezione attiva resterebbe invisibile
+  const act=lcuGetActiveSelection();
+  if(act&&act.cells.has(key))return '0 0 0 2px #BEA050 inset';
   for(let i=0;i<lcuSelections.length;i++){
     if(lcuSelections[i].cells.has(key)){
       return lcuSelections[i].id===lcuActiveSelId?'0 0 0 2px #BEA050 inset':'0 0 0 1px rgba(190,160,80,0.45) inset';
@@ -1945,6 +1953,7 @@ function lcuSetCell(r,c,type){
         if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
       }
     });
+    lcuUpdateSelWarn();
   }else{
     lcuGrid[key]=type;
   }
@@ -1973,6 +1982,7 @@ function lcuPaintCell(r,c){
     });
     const countEl=document.getElementById('lcu-chip-count-'+sel.id);
     if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
+    lcuUpdateSelWarn();
     return;
   }
   if(lcuTool==='eraser'){
@@ -2018,7 +2028,33 @@ function lcuGridMouseOver(e){
 function lcuStopPainting(){
   if(lcuPainting){lcuPainting=false;renderLcuResults();}
 }
-function lcuGridTouchStart(e){
+// ===== MODULI IN PIÙ SELEZIONI =====
+// È consentito che lo stesso modulo stia in più selezioni (es. un modulo d'angolo conteggiato sia
+// nella gamba sia nella traversa), ma va segnalato. I moduli si contano interi: le due metà di un
+// 100x50 valgono un modulo solo.
+function lcuSharedModules(a,b){
+  const ids=new Set();
+  a.cells.forEach(k=>{if(b.cells.has(k)){const p=lcuPairs[k];ids.add(p!==undefined?[k,p].sort().join('|'):k);}});
+  return ids.size;
+}
+function lcuOverlapPairs(){
+  const out=[];
+  for(let i=0;i<lcuSelections.length;i++)for(let j=i+1;j<lcuSelections.length;j++){
+    const n=lcuSharedModules(lcuSelections[i],lcuSelections[j]);
+    if(n)out.push({a:lcuSelections[i].num,b:lcuSelections[j].num,n});
+  }
+  return out;
+}
+function lcuOverlapsOf(sel){
+  return lcuSelections.filter(o=>o!==sel).map(o=>({num:o.num,n:lcuSharedModules(sel,o)})).filter(x=>x.n);
+}
+function lcuUpdateSelWarn(){
+  const el=document.getElementById('lcu-sel-warn');if(!el)return;
+  const pairs=lcuOverlapPairs();
+  if(!pairs.length){el.classList.remove('show');el.textContent='';return;}
+  el.textContent='⚠️ Attenzione: lo stesso modulo compare in più selezioni — '+pairs.map(p=>`Selezione ${p.a} e ${p.b}: ${p.n} ${p.n===1?'modulo':'moduli'} in comune`).join('; ')+'. È consentito: ogni selezione lo include nella propria risoluzione.';
+  el.classList.add('show');
+}function lcuGridTouchStart(e){
   const cell=e.target.closest&&e.target.closest('.lcu-cell');
   if(!cell)return;
   lcuPainting=true;
@@ -2070,6 +2106,7 @@ function renderLcuCanvas(){
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">${selChipsHtml}</div>
+      <div id="lcu-sel-warn" class="lt-warn caution" style="margin:0 0 10px"></div>
       <div class="lcu-scroll" style="overflow-x:auto;overflow-y:hidden;max-width:100%;padding:3px 3px 9px 3px">
         <div class="lcu-ruler" style="grid-template-columns:repeat(${lcuCols},28px)">${Array.from({length:lcuCols},(_,c)=>{const isLast=c===lcuCols-1;const lbl=isLast?lcuW.toLocaleString('it-IT')+'m':(c%2===0?(c*0.5).toLocaleString('it-IT')+'m':'');return `<span style="grid-column:${c+1}${isLast?';text-align:right':''}">${lbl}</span>`;}).join('')}</div>
         <div class="lcu-grid" id="lcu-grid" style="grid-template-columns:repeat(${lcuCols},28px)">${cellsHtml}</div>
@@ -2082,6 +2119,7 @@ function renderLcuCanvas(){
       </div>
     </div>
   </div>`;
+  lcuUpdateSelWarn();
 }
 function renderLcuResults(){
   const res=document.getElementById('lcu-result');
@@ -2122,6 +2160,7 @@ function renderLcuResults(){
       <div style="font-size:10px;color:${accent};margin-bottom:4px;display:flex;align-items:center;gap:5px">${dotsHtml}<span>Selezione ${sel.num} — ${moduleIds.size} ${moduleIds.size===1?'modulo':'moduli'} · ${selMq.toLocaleString('it-IT')} mq</span></div>
       <div style="font-size:12px;color:var(--tm);margin-bottom:3px">Base ${selW.toLocaleString('it-IT')} m × Altezza ${selH.toLocaleString('it-IT')} m</div>
       <div style="font-size:15px;font-weight:700">${rxSel.toLocaleString('it-IT')} × ${rySel.toLocaleString('it-IT')} px</div>
+      ${lcuOverlapsOf(sel).map(o=>`<div style="font-size:11px;color:var(--war);margin-top:4px">⚠️ ${o.n} ${o.n===1?'modulo':'moduli'} in comune con Selezione ${o.num}</div>`).join('')}
     </div>`;
   });
   document.getElementById('lcu-pixel').innerHTML=pixelHtml;
@@ -2170,7 +2209,6 @@ function exportPDFLedwallCustom(){
     const totalMq=Math.round(keys.length*0.25*100)/100;
     if(nomeProg){addSec('Progetto');addRow('Nome',nomeProg);y+=4;}
     addSec('Configurazione');
-    addRow('Tavolozza',lcuW+' × '+lcuH+' m');
     addRow('Moduli disegnati',''+keys.length);y+=4;
     addSec('Impegno Moduli');
     if(counts['50x100FLAT'])addRow('50x100 FLAT',mqOf('50x100FLAT')+' mq');
@@ -2179,9 +2217,8 @@ function exportPDFLedwallCustom(){
     if(counts['50x50CURVO'])addRow('50x50 CURVO',mqOf('50x50CURVO')+' mq');
     addRow('Superficie totale',totalMq+' mq',true);y+=4;
     const ppm=Math.floor(1000/2.6);
-    const rxTot=Math.floor(ppm*lcuCols*0.5),ryTot=Math.floor(ppm*lcuRows*0.5);
+    // La tavolozza è solo l'area di lavoro dell'editor: nel PDF per il cliente non si riporta
     addSec('Risoluzione Pixel');
-    addRow('Tavolozza',rxTot.toLocaleString('it-IT')+' × '+ryTot.toLocaleString('it-IT')+' px',true);
     lcuSelections.forEach(sel=>{
       if(!sel.cells.size)return;
       let minR=Infinity,maxR=-Infinity,minC=Infinity,maxC=-Infinity;
@@ -2192,7 +2229,9 @@ function exportPDFLedwallCustom(){
       const typeLabel=typesPresent.size===1?LCU_LABELS[Array.from(typesPresent)[0]]:'misto';
       const moduleIds=new Set();
       sel.cells.forEach(k=>{const partner=lcuPairs[k];moduleIds.add(partner!==undefined?[k,partner].sort().join('|'):k);});
-      addRow('Selezione '+sel.num+' — '+typeLabel+' ('+moduleIds.size+' moduli)',rxSel.toLocaleString('it-IT')+' × '+rySel.toLocaleString('it-IT')+' px');
+      chk(8);const ySw=y,sc=lcuSelRgb(sel.num); // chk prima, così il quadratino resta sulla stessa pagina della riga
+      addRow('      Selezione '+sel.num+' — '+typeLabel+' ('+moduleIds.size+(moduleIds.size===1?' modulo)':' moduli)'),rxSel.toLocaleString('it-IT')+' × '+rySel.toLocaleString('it-IT')+' px');
+      doc.setFillColor(sc[0],sc[1],sc[2]);doc.rect(mg+6,ySw-2.9,3.2,3.2,'F');
       addRow('   Base × Altezza',selW.toLocaleString('it-IT')+' × '+selH.toLocaleString('it-IT')+' m');
     });
     y+=4;
@@ -2200,22 +2239,60 @@ function exportPDFLedwallCustom(){
     addSec('Specifiche');
     addRow('Superficie',totalMq.toFixed(2)+' mq');addRow('Potenza',kw+' kW');addRow('N. Linee',''+linee);addRow('Passo','2.6 mm');
     doc.addPage();addHeader();addSec('Vista Composizione');
-    const maxPdfW=cw-4,maxPdfH=ph-y-20;
-    const cellPdf=Math.max(1,Math.min(Math.floor(maxPdfW/lcuCols),Math.floor(maxPdfH/lcuRows)));
-    const gridW=cellPdf*lcuCols,ox=mg+(cw-gridW)/2;
-    for(let r=0;r<lcuRows;r++){
-      for(let c=0;c<lcuCols;c++){
+    const selsPdf=lcuSelections.filter(s=>s.cells.size);
+    const legendH=selsPdf.length?selsPdf.length*7+10:0; // spazio riservato alla legenda delle selezioni sotto il disegno
+    const maxPdfW=cw-4,maxPdfH=ph-y-20-legendH;
+    // Il disegno si ritaglia sui soli moduli disegnati (niente righe/colonne vuote della tavolozza)
+    let eMinR=Infinity,eMaxR=-Infinity,eMinC=Infinity,eMaxC=-Infinity;
+    keys.forEach(k=>{const[r,c]=k.split(',').map(Number);eMinR=Math.min(eMinR,r);eMaxR=Math.max(eMaxR,r);eMinC=Math.min(eMinC,c);eMaxC=Math.max(eMaxC,c);});
+    const eCols=eMaxC-eMinC+1,eRows=eMaxR-eMinR+1;
+    const cellPdf=Math.max(1,Math.min(Math.floor(maxPdfW/eCols),Math.floor(maxPdfH/eRows)));
+    const gridW=cellPdf*eCols,ox=mg+(cw-gridW)/2-eMinC*cellPdf,oyG=y-eMinR*cellPdf;
+    for(let r=eMinR;r<=eMaxR;r++){
+      for(let c=eMinC;c<=eMaxC;c++){
         const t=lcuGrid[r+','+c];
         if(!t)continue;
         const fc=t==='50x100FLAT'?[107,114,128]:t==='50x50FLAT'?[244,63,94]:t==='50x50TAGLIATO'?[74,222,128]:[168,85,247];
         doc.setFillColor(fc[0],fc[1],fc[2]);
-        doc.rect(ox+c*cellPdf,y+r*cellPdf,cellPdf-0.3,cellPdf-0.3,'F');
+        doc.rect(ox+c*cellPdf,oyG+r*cellPdf,cellPdf-0.3,cellPdf-0.3,'F');
       }
     }
-    y+=lcuRows*cellPdf+10;
+    // Riquadro colorato per ogni selezione: è esattamente l'area (base × altezza) su cui è calcolata la sua
+    // risoluzione. Riquadri sovrapposti (moduli in più selezioni) restano distinguibili grazie al rientro diverso.
+    const tagSpots=[];
+    selsPdf.forEach((sel,i)=>{
+      let minR=Infinity,maxR=-Infinity,minC=Infinity,maxC=-Infinity;
+      sel.cells.forEach(k=>{const[r,c]=k.split(',').map(Number);minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);});
+      const sc=lcuSelRgb(sel.num),ins=0.4+(i%3)*0.7;
+      const bx=ox+minC*cellPdf+ins,by=oyG+minR*cellPdf+ins,bw=(maxC-minC+1)*cellPdf-0.3-2*ins,bh=(maxR-minR+1)*cellPdf-0.3-2*ins;
+      doc.setDrawColor(sc[0],sc[1],sc[2]);doc.setLineWidth(0.7);doc.rect(bx,by,bw,bh,'S');
+      // etichetta "S1", "S2"… nell'angolo in alto a sinistra; se l'angolo è già occupato si sposta a destra
+      const tw=7,th=4;let tx=bx;
+      while(tagSpots.some(p=>Math.abs(p.x-tx)<tw&&Math.abs(p.y-by)<th))tx+=tw+0.6;
+      tagSpots.push({x:tx,y:by});
+      doc.setFillColor(sc[0],sc[1],sc[2]);doc.rect(tx,by,tw,th,'F');
+      doc.setFontSize(7);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('S'+sel.num,tx+tw/2,by+2.9,{align:'center'});
+    });
+    y+=eRows*cellPdf+10;
+    // Legenda: colore → selezione → risoluzione, così la vista e i numeri si leggono insieme
+    if(selsPdf.length){
+      const ppmL=Math.floor(1000/2.6);
+      selsPdf.forEach(sel=>{
+        let minR=Infinity,maxR=-Infinity,minC=Infinity,maxC=-Infinity;
+        sel.cells.forEach(k=>{const[r,c]=k.split(',').map(Number);minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);});
+        const sW=(maxC-minC+1)*0.5,sH=(maxR-minR+1)*0.5,sc=lcuSelRgb(sel.num);
+        chk(8);
+        doc.setFillColor(sc[0],sc[1],sc[2]);doc.rect(mg+4,y-3,6,4,'F');
+        doc.setFontSize(7);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('S'+sel.num,mg+7,y-0.1,{align:'center'});
+        doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(dk.r,dk.g,dk.b);doc.text('Selezione '+sel.num,mg+13,y);
+        doc.setFont('helvetica','normal');doc.setTextColor(sub.r,sub.g,sub.b);doc.text(sW.toLocaleString('it-IT')+' × '+sH.toLocaleString('it-IT')+' m',mg+45,y);
+        doc.setFont('helvetica','bold');doc.setTextColor(dk.r,dk.g,dk.b);doc.text(Math.floor(ppmL*sW).toLocaleString('it-IT')+' × '+Math.floor(ppmL*sH).toLocaleString('it-IT')+' px',pw-mg-6,y,{align:'right'});
+        y+=7;
+      });
+    }
     const total=doc.getNumberOfPages();
     for(let i=1;i<=total;i++){doc.setPage(i);doc.setDrawColor(230,230,235);doc.setLineWidth(0.3);doc.line(mg,ph-15,pw-mg,ph-15);doc.setFontSize(7.5);doc.setTextColor(sub.r,sub.g,sub.b);doc.setFont('helvetica','normal');doc.text('FORM.THE CREATIVE GROUP  |  Ledwall Custom Lotto 5'+(nomeProg?' — '+nomeProg:''),mg,ph-10);doc.text(i+' / '+total,pw-mg,ph-10,{align:'right'});}
-    doc.save('Ledwall_Custom_Lotto5_'+(lcuCols*0.5)+'x'+(lcuRows*0.5)+'m_'+new Date().toISOString().split('T')[0]+'.pdf');
+    doc.save('Ledwall_Custom_Lotto5_'+(eCols*0.5)+'x'+(eRows*0.5)+'m_'+new Date().toISOString().split('T')[0]+'.pdf');
   }catch(e){alert('Attendere il caricamento della libreria PDF e riprovare.');}
 }
 // ===== SIMULATORE PASSO LIBERO =====
