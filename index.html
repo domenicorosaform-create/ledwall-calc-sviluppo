@@ -125,7 +125,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--dark);color
 .lcu-tool{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:transparent}
 .lcu-tool.act{border-color:var(--gold);background:rgba(190,160,80,0.1)}
 .lcu-swatch{width:22px;height:22px;border-radius:5px;flex-shrink:0}
-.lcu-grid{display:grid;gap:2px;justify-content:start;touch-action:none}
+.lcu-grid{display:grid;gap:2px;justify-content:start;touch-action:none;grid-auto-rows:28px}
 .lcu-cell{width:28px;height:28px;border-radius:3px;border:1px solid rgba(255,255,255,0.05);cursor:pointer}
 .lcu-tb-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent}
 .lcu-tb-btn.act{background:rgba(190,160,80,0.22);border-color:rgba(190,160,80,0.4)}
@@ -1925,6 +1925,33 @@ function lcuCellRing(r,c){
   }
   return 'none';
 }
+// Il 100x50 è UN solo cabinet: le sue due celle si disegnano come un rettangolo continuo.
+// La cella alta si allunga di 2px (lo spazio fra le righe, con grid-auto-rows fisso non sposta
+// la griglia) fino a toccare quella bassa; angoli arrotondati, bordo e contorno di selezione
+// stanno solo sul perimetro esterno del rettangolo.
+function lcuCellLook(r,c){
+  const key=r+','+c,t=lcuGrid[key];
+  const look={bg:t?COL[t]:'rgba(255,255,255,0.025)',h:'28px',radius:'3px',bt:'',bb:'',shadow:lcuCellRing(r,c)};
+  const partner=lcuPairs[key];
+  if(t==='50x100FLAT'&&partner!==undefined){
+    const isTop=parseInt(partner.split(',')[0])>r;
+    const w=look.shadow==='none'?0:(look.shadow.indexOf('2px')>=0?2:1);
+    const col=w===2?'#BEA050':'rgba(190,160,80,0.45)';
+    if(isTop){look.h='30px';look.radius='3px 3px 0 0';look.bb='transparent';}
+    else{look.radius='0 0 3px 3px';look.bt='transparent';}
+    if(w)look.shadow=[`inset ${w}px 0 0 ${col}`,`inset -${w}px 0 0 ${col}`,isTop?`inset 0 ${w}px 0 ${col}`:`inset 0 -${w}px 0 ${col}`].join(',');
+  }
+  return look;
+}
+function lcuCellStyleStr(r,c){
+  const L=lcuCellLook(r,c);
+  return `background:${L.bg};box-shadow:${L.shadow};height:${L.h};border-radius:${L.radius}`+(L.bt?`;border-top-color:${L.bt}`:'')+(L.bb?`;border-bottom-color:${L.bb}`:'');
+}
+function lcuStyleCell(el,r,c){
+  const L=lcuCellLook(r,c);
+  el.style.background=L.bg;el.style.boxShadow=L.shadow;el.style.height=L.h;el.style.borderRadius=L.radius;
+  el.style.borderTopColor=L.bt;el.style.borderBottomColor=L.bb;
+}
 // Il modulo 100x50 è alto il doppio di uno 50x50 (0,5 x 1,0 m): occupa sempre 2 celle
 // verticali della griglia da 0,5m, mai una sola — altrimenti superficie e risoluzione
 // pixel risultano dimezzate in altezza rispetto alla realtà.
@@ -1958,10 +1985,7 @@ function lcuSetCell(r,c,type){
     lcuGrid[key]=type;
   }
   const el=document.querySelector('.lcu-cell[data-r="'+r+'"][data-c="'+c+'"]');
-  if(el){
-    el.style.background=type?COL[type]:'rgba(255,255,255,0.025)';
-    el.style.boxShadow=lcuCellRing(r,c);
-  }
+  if(el)lcuStyleCell(el,r,c);
 }
 function lcuPaintCell(r,c){
   const key=r+','+c;
@@ -1978,7 +2002,7 @@ function lcuPaintCell(r,c){
       if(wasSelected)sel.cells.delete(k);else sel.cells.add(k);
       const p=k.split(',');
       const el=document.querySelector('.lcu-cell[data-r="'+p[0]+'"][data-c="'+p[1]+'"]');
-      if(el)el.style.boxShadow=lcuCellRing(parseInt(p[0]),parseInt(p[1]));
+      if(el)lcuStyleCell(el,parseInt(p[0]),parseInt(p[1]));
     });
     const countEl=document.getElementById('lcu-chip-count-'+sel.id);
     if(countEl)countEl.textContent='▭ Selezione '+sel.num+' ('+sel.cells.size+')';
@@ -2002,6 +2026,8 @@ function lcuPaintCell(r,c){
     lcuSetCell(r2,c,'50x100FLAT');
     lcuPairs[key]=r2+','+c;
     lcuPairs[r2+','+c]=key;
+    // ridisegna le due metà ora che la coppia è registrata, così diventano un rettangolo unico
+    [[r,c],[r2,c]].forEach(([rr,cc])=>{const el=document.querySelector('.lcu-cell[data-r="'+rr+'"][data-c="'+cc+'"]');if(el)lcuStyleCell(el,rr,cc);});
     return;
   }
   // strumenti 50x50: ripassare su una cella già corretta non fa nulla
@@ -2084,11 +2110,7 @@ function renderLcuCanvas(){
   let cellsHtml='';
   for(let r=0;r<lcuRows;r++){
     for(let c=0;c<lcuCols;c++){
-      const key=r+','+c;
-      const t=lcuGrid[key];
-      const bg=t?COL[t]:'rgba(255,255,255,0.025)';
-      const ring=lcuCellRing(r,c);
-      cellsHtml+=`<div class="lcu-cell" data-r="${r}" data-c="${c}" style="background:${bg};box-shadow:${ring}"></div>`;
+      cellsHtml+=`<div class="lcu-cell" data-r="${r}" data-c="${c}" style="${lcuCellStyleStr(r,c)}"></div>`;
     }
   }
   const selChipsHtml=lcuSelections.map(s=>`<div class="lcu-tool${s.id===lcuActiveSelId?' act':''}" style="padding:5px 9px;gap:6px" onclick="lcuSetActiveSelection('${s.id}')"><span id="lcu-chip-count-${s.id}" style="font-size:11px">▭ Selezione ${s.num} (${s.cells.size})</span><span onclick="event.stopPropagation();lcuDeleteSelection('${s.id}')" style="color:var(--tm);cursor:pointer;font-size:11px;padding:0 2px" title="Elimina selezione">✕</span></div>`).join('')
@@ -2254,6 +2276,13 @@ function exportPDFLedwallCustom(){
         if(!t)continue;
         const fc=t==='50x100FLAT'?[107,114,128]:t==='50x50FLAT'?[244,63,94]:t==='50x50TAGLIATO'?[74,222,128]:[168,85,247];
         doc.setFillColor(fc[0],fc[1],fc[2]);
+        // 100x50: un rettangolo unico alto due celle, disegnato dalla metà alta (quella bassa si salta)
+        const pq=lcuPairs[r+','+c];
+        if(t==='50x100FLAT'&&pq!==undefined){
+          if(parseInt(pq.split(',')[0])<r)continue;
+          doc.rect(ox+c*cellPdf,oyG+r*cellPdf,cellPdf-0.3,2*cellPdf-0.3,'F');
+          continue;
+        }
         doc.rect(ox+c*cellPdf,oyG+r*cellPdf,cellPdf-0.3,cellPdf-0.3,'F');
       }
     }
